@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Package">
+  <!-- IMPORTS -->
+  <Import Project="$(MSBuildProjectDirectory)\MSBuildTasks\MSBuild.Community.Tasks.Targets" />
+  <Import Project="$(MSBuildProjectDirectory)\MSBuildTasks\MSBuild.Umbraco.Tasks.Targets" />
+
+  <!-- PROPERTIES -->
+  <PropertyGroup>
+    <RootDir>$(MSBuildProjectDirectory)\..\Cob.Umb.Elmah</RootDir>
+    <BuildDir>$(MSBuildProjectDirectory)\_build</BuildDir>
+    <BuildUmbDir>$(BuildDir)\_umbraco</BuildUmbDir>
+  </PropertyGroup>
+
+  <!-- TARGETS -->
+  <Target Name="Build">
+    <MSBuild Projects="..\Cob.Umb.Elmah.sln" Properties="Configuration = $(Configuration)" Targets="Rebuild"/>
+  </Target>
+
+  <!-- PREPARE FILES -->
+  <Target Name="PrepareFiles" DependsOnTargets="Build">
+    <ItemGroup>
+      <BinFiles Include="$(RootDir)\bin\Release\Cob.Umb.Elmah.dll" />
+      <BinFiles Include="$(RootDir)\bin\Release\Elmah.dll" />
+      <DebugFiles Include="$(RootDir)\bin\Release\Cob.Umb.Elmah.pdb" />
+      <PackageFile Include="$(MSBuildProjectDirectory)\package.xml" />
+    </ItemGroup>
+    <!-- OFFSET TIMESTAMP -->
+    <MSBuild.Umbraco.Tasks.TimestampOffset Files="@(BinFiles)" Offset="-11" />
+    <!-- COPY FOR UMBRACO PACKAGE -->
+    <Copy SourceFiles="@(BinFiles)" DestinationFolder="$(BuildUmbDir)\bin" />
+    <Copy SourceFiles="@(DebugFiles)" DestinationFolder="$(BuildUmbDir)\bin" Condition="$(PackageVersion.EndsWith('-build'))" />
+    <Copy SourceFiles="@(PackageFile)" DestinationFolder="$(BuildUmbDir)" />
+  </Target>
+
+  <!-- MANIFEST FOR UMBRACO PACKAGE -->
+  <Target Name="ManifestUmbraco" DependsOnTargets="PrepareFiles">
+    <ItemGroup>
+      <ManifestFiles Include="$(BuildUmbDir)\**\*" Exclude="$(BuildUmbDir)\package.xml" />
+    </ItemGroup>
+    <MSBuild.Umbraco.Tasks.ManifestUpdate ManifestFile="$(BuildUmbDir)\package.xml"
+      WorkingDirectory="$(BuildUmbDir)"
+      MinimumRequiredUmbracoVersion="$(MinUmbracoVersion)"
+      PackageVersion="$(PackageVersion)"
+      Readme="$([System.IO.File]::ReadAllText(readme.txt))"
+      Files="@(ManifestFiles)" />
+  </Target>
+
+  <!-- PACKAGE -->
+  <Target Name="Package" DependsOnTargets="ManifestUmbraco">
+    <ItemGroup>
+      <PackageFiles Include="$(BuildUmbDir)\**\*.*" />
+    </ItemGroup>
+
+    <Message Text="Package version: $(PackageVersion)" />
+    <Message Text="Minimum Umbraco version: $(MinUmbracoVersion)" />
+    
+    <MSBuild.Umbraco.Tasks.Package ManifestFile="$(BuildUmbDir)\package.xml"
+      WorkingDirectory="$(BuildUmbDir)"
+      OutputDirectory="$(MSBuildProjectDirectory)"
+      Files="@(PackageFiles)" />
+      
+    <RemoveDir Directories="$(BuildDir)" Condition="Exists('$(BuildDir)')" />
+    <Delete Files="$(RootDir)\..\Cob.Umb.Elmah.sln.cache" />
+  </Target>
+</Project>
